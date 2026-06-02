@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { ChevronDown, LinkIcon, WandSparkles } from "lucide-react"
+import { CheckCircle2, ChevronDown, LinkIcon, Loader2, WandSparkles } from "lucide-react"
 import { AppShell } from "@/components/app-shell"
 import { StatusMessage } from "@/components/status-message"
 import { Button } from "@/components/ui/button"
@@ -22,6 +22,18 @@ type FormState = {
   description: string
 }
 
+type ExtractedJob = {
+  title?: string | null
+  company?: string | null
+  location?: string | null
+  remote_type?: FormState["remote_type"] | null
+  description?: string | null
+  extraction_confidence?: "high" | "medium" | "low" | null
+}
+
+type SubmitPhase = "idle" | "extracting" | "analyzing"
+type ProgressStep = "ready" | "extracting" | "analyzing" | "opening" | "error"
+
 const initialForm: FormState = {
   source_type: "linkedin",
   source_url: "",
@@ -35,64 +47,84 @@ const initialForm: FormState = {
 export default function NewJobPage() {
   const router = useRouter()
   const [form, setForm] = useState<FormState>(initialForm)
-  const [loading, setLoading] = useState(false)
-  const [extracting, setExtracting] = useState(false)
+  const [submitPhase, setSubmitPhase] = useState<SubmitPhase>("idle")
   const [detailsOpen, setDetailsOpen] = useState(false)
   const [message, setMessage] = useState("")
   const [error, setError] = useState("")
+  const [progressStep, setProgressStep] = useState<ProgressStep>("ready")
+
+  const busy = submitPhase !== "idle"
 
   const update = (key: keyof FormState, value: string) => {
     setForm((current) => ({ ...current, [key]: value }))
+    if (error) setError("")
   }
 
-  const extract = async () => {
-    setExtracting(true)
+  const extractFromUrl = async (sourceUrl: string, options: { showMessage?: boolean } = {}) => {
+    setSubmitPhase("extracting")
+    setProgressStep("extracting")
     setError("")
-    setMessage("")
+    setMessage(options.showMessage ? "" : "Reading the job page...")
     try {
       const response = await fetch("/api/jobs/extract", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ source_url: form.source_url }),
+        body: JSON.stringify({ source_url: sourceUrl }),
       })
       const data = await response.json()
       if (!response.ok) throw new Error(data.error)
+
+      const extracted = data as ExtractedJob
       setForm((current) => ({
         ...current,
-        title: data.title ?? current.title,
-        company: data.company ?? current.company,
-        location: data.location ?? current.location,
-        remote_type: data.remote_type ?? current.remote_type,
-        description: data.description ?? current.description,
+        title: extracted.title ?? current.title,
+        company: extracted.company ?? current.company,
+        location: extracted.location ?? current.location,
+        remote_type: extracted.remote_type ?? current.remote_type,
+        description: extracted.description ?? current.description,
       }))
-      setMessage(
-        data.extraction_confidence === "low"
-          ? "Extraction confidence is low. Review and edit the job details before analysis."
-          : `Extracted fields are ready to review. Confidence: ${data.extraction_confidence ?? "medium"}.`
-      )
-      return data
+      if (options.showMessage) {
+        setMessage(
+          extracted.extraction_confidence === "low"
+            ? "Extraction confidence is low. Review and edit the job description before analysis."
+            : `Extracted job description. Confidence: ${extracted.extraction_confidence ?? "medium"}.`
+        )
+        setProgressStep("ready")
+      }
+      return extracted
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Extraction failed. You can paste the job manually.")
+      if (options.showMessage) {
+        setError(err instanceof Error ? err.message : "Extraction failed. Paste the job description manually.")
+        setProgressStep("error")
+      }
       return null
     } finally {
-      setExtracting(false)
+      if (options.showMessage) {
+        setSubmitPhase("idle")
+      }
     }
   }
 
   const submit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-    setLoading(true)
+    setSubmitPhase("analyzing")
+    setProgressStep("analyzing")
     setError("")
+    setMessage("")
     try {
+      const sourceUrl = form.source_url.trim()
+      const description = form.description.trim()
       let payload = {
         ...form,
-        source_type: getSourceType(form.source_url, form.description),
+        source_url: sourceUrl,
+        description,
+        source_type: getSourceType(sourceUrl, description),
       }
 
-      if (!payload.description.trim() && payload.source_url.trim()) {
-        const extracted = await extract()
+      if (!description && sourceUrl) {
+        const extracted = await extractFromUrl(sourceUrl)
         if (!extracted?.description) {
-          throw new Error("I could not read enough from that URL. Paste the job description and try again.")
+          throw new Error("I could not read enough from that URL. Paste the job description into the box and click Analyze fit again.")
         }
 
         payload = {
@@ -101,10 +133,14 @@ export default function NewJobPage() {
           company: extracted.company ?? payload.company,
           location: extracted.location ?? payload.location,
           remote_type: extracted.remote_type ?? payload.remote_type,
-          description: extracted.description,
+          description: extracted.description.trim(),
+          source_type: getSourceType(sourceUrl, extracted.description),
         }
       }
 
+      setSubmitPhase("analyzing")
+      setProgressStep("analyzing")
+      setMessage("Analyzing fit against your resume...")
       const response = await fetch("/api/jobs", {
         method: "POST",
         headers: { "content-type": "application/json" },
@@ -112,11 +148,16 @@ export default function NewJobPage() {
       })
       const data = await response.json()
       if (!response.ok) throw new Error(data.error)
+      if (!data.id) throw new Error("Analysis finished, but the job page could not be opened.")
+      setProgressStep("opening")
+      setMessage("Analysis complete. Opening the job report...")
       router.push(`/jobs/${data.id}`)
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not analyze job.")
+      setMessage("")
+      setProgressStep("error")
     } finally {
-      setLoading(false)
+      setSubmitPhase("idle")
     }
   }
 
@@ -149,8 +190,8 @@ export default function NewJobPage() {
                     className="pl-9"
                   />
                 </div>
-                <Button type="button" variant="secondary" onClick={extract} disabled={extracting || !form.source_url}>
-                  {extracting ? "Extracting" : "Extract"}
+                <Button type="button" variant="secondary" onClick={() => extractFromUrl(form.source_url.trim(), { showMessage: true })} disabled={busy || !form.source_url.trim()}>
+                  {submitPhase === "extracting" ? "Extracting" : "Extract"}
                 </Button>
               </div>
             </div>
@@ -200,10 +241,15 @@ export default function NewJobPage() {
               ) : null}
             </div>
 
-            <div className="flex justify-end">
-              <Button type="submit" disabled={loading || extracting || (!form.source_url.trim() && !form.description.trim())}>
-                <WandSparkles className="h-4 w-4" />
-                {loading ? "Analyzing" : "Analyze fit"}
+            <ProgressStatus step={progressStep} phase={submitPhase} error={error} message={message} hasDescription={Boolean(form.description.trim())} hasSourceUrl={Boolean(form.source_url.trim())} />
+
+            <div className="sticky bottom-0 -mx-6 -mb-6 flex items-center justify-between gap-3 border-t bg-white/95 px-6 py-4 backdrop-blur supports-[backdrop-filter]:bg-white/80">
+              <p className="text-sm text-slate-500">
+                {busy ? "Please wait. The report opens automatically when analysis finishes." : "Ready when you are."}
+              </p>
+              <Button type="submit" disabled={busy || (!form.source_url.trim() && !form.description.trim())}>
+                {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <WandSparkles className="h-4 w-4" />}
+                {getSubmitLabel(submitPhase, form)}
               </Button>
             </div>
           </CardContent>
@@ -211,6 +257,64 @@ export default function NewJobPage() {
       </form>
     </AppShell>
   )
+}
+
+function ProgressStatus({
+  step,
+  phase,
+  error,
+  message,
+  hasDescription,
+  hasSourceUrl,
+}: {
+  step: ProgressStep
+  phase: SubmitPhase
+  error: string
+  message: string
+  hasDescription: boolean
+  hasSourceUrl: boolean
+}) {
+  if (step === "ready" && !message && !error) {
+    return (
+      <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+        {hasDescription
+          ? "Click Analyze fit to score this job against your resume."
+          : hasSourceUrl
+            ? "Click Extract and analyze to read the page, then score it against your resume."
+            : "Paste a job URL or description to start."}
+      </div>
+    )
+  }
+
+  const activeLabel =
+    phase === "extracting"
+      ? "Extracting the job description"
+      : phase === "analyzing"
+        ? "Analyzing fit against your resume"
+        : step === "opening"
+          ? "Opening the job report"
+          : "Ready"
+
+  return (
+    <div aria-live="polite" className={`rounded-lg border px-4 py-3 text-sm ${error ? "border-red-200 bg-red-50 text-red-700" : "border-blue-200 bg-blue-50 text-blue-800"}`}>
+      <div className="flex items-start gap-3">
+        {error ? <span className="mt-0.5 h-2 w-2 rounded-full bg-red-500" /> : step === "opening" ? <CheckCircle2 className="mt-0.5 h-4 w-4" /> : <Loader2 className="mt-0.5 h-4 w-4 animate-spin" />}
+        <div className="space-y-1">
+          <p className="font-medium">{error ? "Something stopped the analysis" : activeLabel}</p>
+          <p className={error ? "text-red-700" : "text-blue-700"}>
+            {error || message || "This can take 30-90 seconds because the app is running AI matching and application strategy."}
+          </p>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function getSubmitLabel(phase: SubmitPhase, form: FormState) {
+  if (phase === "extracting") return "Extracting job"
+  if (phase === "analyzing") return "Analyzing fit"
+  if (!form.description.trim() && form.source_url.trim()) return "Extract and analyze"
+  return "Analyze fit"
 }
 
 function getSourceType(sourceUrl: string, description: string): FormState["source_type"] {

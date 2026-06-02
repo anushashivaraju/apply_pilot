@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server"
 import { z } from "zod"
 import { runApplicationPackageAgent } from "@/lib/agents/applicationPackageAgent"
-import { jsonError, normalizeList } from "@/lib/api"
+import { jsonError } from "@/lib/api"
+import { ensureCandidateProfileSummary, normalizeProfile } from "@/lib/profile"
 import { getSupabaseAdmin } from "@/lib/supabase/server"
-import type { ApplicationStrategy, CandidateProfileSummary, MatchResult, Profile } from "@/types"
+import type { ApplicationStrategy, MatchResult } from "@/types"
 
 export const runtime = "nodejs"
 
@@ -23,21 +24,17 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     if (profileResult.error) throw profileResult.error
     if (jobResult.error) throw jobResult.error
 
-    const profile: Profile = {
-      ...profileResult.data,
-      candidate_profile_summary:
-        (profileResult.data.candidate_profile_summary as CandidateProfileSummary | null) ?? null,
-      preferred_roles: normalizeList(profileResult.data.preferred_roles),
-      excluded_companies: normalizeList(profileResult.data.excluded_companies),
-      excluded_keywords: normalizeList(profileResult.data.excluded_keywords),
-    }
+    let profile = normalizeProfile(profileResult.data)
 
     if (!profile.resume_text) {
       return jsonError("Upload a resume in Settings before generating an application package.")
     }
+    const resumeText = profile.resume_text
 
-    if (!profile.candidate_profile_summary) {
-      return jsonError("Re-upload your resume in Settings to generate the candidate profile summary before generating an application package.")
+    profile = await ensureCandidateProfileSummary(supabase, profile)
+    const candidateProfileSummary = profile.candidate_profile_summary
+    if (!candidateProfileSummary) {
+      throw new Error("Could not generate your resume profile summary. Try uploading the resume again.")
     }
 
     if (!jobResult.data.match_data) {
@@ -45,8 +42,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     }
 
     const applicationPackage = await runApplicationPackageAgent({
-      candidateProfileSummary: profile.candidate_profile_summary,
-      originalResumeText: profile.resume_text,
+      candidateProfileSummary,
+      originalResumeText: resumeText,
       profile,
       job: jobResult.data,
       matchResult: jobResult.data.match_data as MatchResult,

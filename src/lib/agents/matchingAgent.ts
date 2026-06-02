@@ -76,16 +76,30 @@ export async function runMatchingAgent(input: {
     return completion.choices[0]?.message.content ?? ""
   }
 
+  let lastError: unknown = null
   for (let attempt = 0; attempt < 2; attempt += 1) {
     const content = await call()
     try {
       return matchResultSchema.parse(JSON.parse(content))
-    } catch {
+    } catch (error) {
+      lastError = error
       if (attempt === 1) {
-        throw new Error("AI returned invalid JSON after retry.")
+        throw new Error(getMatchParseError(lastError))
       }
     }
   }
 
   throw new Error("AI analysis failed.")
+}
+
+function getMatchParseError(error: unknown) {
+  if (error instanceof SyntaxError) {
+    return "AI returned malformed JSON after retry."
+  }
+
+  if (error instanceof Error) {
+    return `AI returned match analysis in an unexpected shape: ${error.message}`
+  }
+
+  return "AI returned match analysis in an unexpected shape."
 }

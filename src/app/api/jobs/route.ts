@@ -1,29 +1,12 @@
 import { NextResponse } from "next/server"
 import { runApplicationStrategyAgent } from "@/lib/agents/applicationStrategyAgent"
 import { runMatchingAgent } from "@/lib/agents/matchingAgent"
-import { jsonError, normalizeList } from "@/lib/api"
+import { jsonError } from "@/lib/api"
+import { ensureCandidateProfileSummary, normalizeProfile } from "@/lib/profile"
 import { getSupabaseAdmin } from "@/lib/supabase/server"
 import { jobInputSchema } from "@/lib/validation"
-import type { CandidateProfileSummary, Profile } from "@/types"
 
 export const runtime = "nodejs"
-
-function normalizeProfile(data: Record<string, unknown>): Profile {
-  return {
-    id: 1,
-    name: (data.name as string | null) ?? null,
-    email: (data.email as string | null) ?? null,
-    resume_text: (data.resume_text as string | null) ?? null,
-    candidate_profile_summary: (data.candidate_profile_summary as CandidateProfileSummary | null) ?? null,
-    resume_filename: (data.resume_filename as string | null) ?? null,
-    resume_storage_path: (data.resume_storage_path as string | null) ?? null,
-    preferred_roles: normalizeList(data.preferred_roles),
-    excluded_companies: normalizeList(data.excluded_companies),
-    excluded_keywords: normalizeList(data.excluded_keywords),
-    cover_letter_threshold: Number(data.cover_letter_threshold ?? process.env.COVER_LETTER_THRESHOLD ?? 60),
-    dashboard_min_score: Number(data.dashboard_min_score ?? 0),
-  }
-}
 
 export async function POST(request: Request) {
   try {
@@ -33,13 +16,15 @@ export async function POST(request: Request) {
     const profileResult = await supabase.from("profile").select("*").eq("id", 1).single()
     if (profileResult.error) throw profileResult.error
 
-    const profile = normalizeProfile(profileResult.data)
+    let profile = normalizeProfile(profileResult.data)
     if (!profile.resume_text) {
       return jsonError("Upload a resume in Settings before analyzing jobs.")
     }
 
-    if (!profile.candidate_profile_summary) {
-      return jsonError("Re-upload your resume in Settings to generate the candidate profile summary before analyzing jobs.")
+    profile = await ensureCandidateProfileSummary(supabase, profile)
+    const candidateProfileSummary = profile.candidate_profile_summary
+    if (!candidateProfileSummary) {
+      throw new Error("Could not generate your resume profile summary. Try uploading the resume again.")
     }
 
     if (input.source_url) {
@@ -67,13 +52,13 @@ export async function POST(request: Request) {
     }
 
     const matchResult = await runMatchingAgent({
-      candidateProfileSummary: profile.candidate_profile_summary,
+      candidateProfileSummary,
       jobDescription: input.description,
       profile,
     })
 
     const applicationStrategy = await runApplicationStrategyAgent({
-      candidateProfileSummary: profile.candidate_profile_summary,
+      candidateProfileSummary,
       profile,
       job: {
         title: input.title ?? null,

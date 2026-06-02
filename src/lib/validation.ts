@@ -1,32 +1,72 @@
 import { z } from "zod"
 
+function stringifyProfileItem(value: unknown) {
+  if (typeof value === "string") return value
+  if (typeof value === "number" || typeof value === "boolean") return String(value)
+  if (!value || typeof value !== "object") return ""
+
+  const record = value as Record<string, unknown>
+  return Object.values(record)
+    .flatMap((item) => (Array.isArray(item) ? item : [item]))
+    .filter((item): item is string | number | boolean => ["string", "number", "boolean"].includes(typeof item))
+    .map(String)
+    .filter(Boolean)
+    .join(" - ")
+}
+
+const profileStringArraySchema = z.preprocess((value) => {
+  if (!Array.isArray(value)) return value
+  return value.map(stringifyProfileItem).filter(Boolean)
+}, z.array(z.string()))
+
+const aiStringSchema = z.preprocess(stringifyProfileItem, z.string())
+const aiStringArraySchema = z.preprocess((value) => {
+  if (value == null) return []
+  if (!Array.isArray(value)) return [stringifyProfileItem(value)].filter(Boolean)
+  return value.map(stringifyProfileItem).filter(Boolean)
+}, z.array(z.string()))
+
+const prioritySchema = z.preprocess((value) => {
+  if (typeof value !== "string") return value
+  const normalized = value.toLowerCase().replaceAll(" ", "_").replaceAll("-", "_")
+  if (normalized.includes("apply")) return "apply_now"
+  if (normalized.includes("maybe")) return "maybe"
+  if (normalized.includes("skip")) return "skip"
+  return normalized
+}, z.enum(["apply_now", "maybe", "skip"]))
+
+const tierSchema = z.preprocess((value) => {
+  if (typeof value !== "string") return value
+  return value.toLowerCase()
+}, z.enum(["strong", "moderate", "weak"]))
+
 export const matchResultSchema = z.object({
-  score: z.number().int().min(0).max(100),
-  tier: z.enum(["strong", "moderate", "weak"]),
-  priority: z.enum(["apply_now", "maybe", "skip"]),
-  summary: z.string(),
-  matched_skills: z.array(z.string()),
-  missing_skills: z.array(z.string()),
-  nice_to_have_skills: z.array(z.string()),
-  recommended: z.boolean(),
-  reasoning: z.string(),
-  application_strategy: z.string(),
-  cover_letter_angle: z.string(),
-  resume_angle: z.string(),
-  interview_risks: z.array(z.string()),
+  score: z.coerce.number().int().min(0).max(100),
+  tier: tierSchema,
+  priority: prioritySchema,
+  summary: aiStringSchema,
+  matched_skills: aiStringArraySchema,
+  missing_skills: aiStringArraySchema,
+  nice_to_have_skills: aiStringArraySchema,
+  recommended: z.coerce.boolean(),
+  reasoning: aiStringSchema,
+  application_strategy: aiStringSchema,
+  cover_letter_angle: aiStringSchema,
+  resume_angle: aiStringSchema,
+  interview_risks: aiStringArraySchema,
 })
 
 export const applicationStrategySchema = z.object({
-  priority: z.enum(["apply_now", "maybe", "skip"]),
-  decision_summary: z.string(),
-  why_this_role_fits: z.array(z.string()),
-  concerns: z.array(z.string()),
-  what_to_emphasize: z.array(z.string()),
-  what_to_downplay: z.array(z.string()),
-  cover_letter_angle: z.string(),
-  resume_tailoring_suggestions: z.array(z.string()),
-  interview_preparation_points: z.array(z.string()),
-  salary_positioning: z.string().nullable(),
+  priority: prioritySchema,
+  decision_summary: aiStringSchema,
+  why_this_role_fits: aiStringArraySchema,
+  concerns: aiStringArraySchema,
+  what_to_emphasize: aiStringArraySchema,
+  what_to_downplay: aiStringArraySchema,
+  cover_letter_angle: aiStringSchema,
+  resume_tailoring_suggestions: aiStringArraySchema,
+  interview_preparation_points: aiStringArraySchema,
+  salary_positioning: aiStringSchema.nullable(),
 })
 
 export const applicationPackageSchema = z.object({
@@ -43,21 +83,21 @@ export const candidateProfileSummarySchema = z.object({
   headline: z.string(),
   years_experience: z.number().nullable(),
   seniority: z.string().nullable(),
-  target_roles: z.array(z.string()),
-  core_skills: z.array(z.string()),
-  technical_skills: z.array(z.string()),
-  domains: z.array(z.string()),
-  notable_experience: z.array(z.string()),
-  education: z.array(z.string()),
-  certifications: z.array(z.string()),
-  work_preferences: z.array(z.string()),
-  constraints: z.array(z.string()),
+  target_roles: profileStringArraySchema,
+  core_skills: profileStringArraySchema,
+  technical_skills: profileStringArraySchema,
+  domains: profileStringArraySchema,
+  notable_experience: profileStringArraySchema,
+  education: profileStringArraySchema,
+  certifications: profileStringArraySchema,
+  work_preferences: profileStringArraySchema,
+  constraints: profileStringArraySchema,
   summary: z.string(),
   positioning_statement: z.string(),
-  strongest_selling_points: z.array(z.string()),
-  proof_points: z.array(z.string()),
+  strongest_selling_points: profileStringArraySchema,
+  proof_points: profileStringArraySchema,
   preferred_application_tone: z.string(),
-  topics_to_avoid_or_downplay: z.array(z.string()),
+  topics_to_avoid_or_downplay: profileStringArraySchema,
   career_direction: z.string(),
 })
 

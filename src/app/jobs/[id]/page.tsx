@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { useParams } from "next/navigation"
-import { Copy, Download, ExternalLink, RefreshCw } from "lucide-react"
+import { CheckCircle2, Copy, Download, ExternalLink, Loader2, RefreshCw } from "lucide-react"
 import { AppShell } from "@/components/app-shell"
 import { StatusMessage } from "@/components/status-message"
 import { Badge } from "@/components/ui/badge"
@@ -17,14 +17,23 @@ import { Textarea } from "@/components/ui/textarea"
 import { tierTone } from "@/lib/jobs"
 import type { Job } from "@/types"
 
+type JobAction = "idle" | "package" | "cover-letter" | "saving"
+type FeedbackAction = Exclude<JobAction, "idle" | "saving"> | null
+
 export default function JobDetailPage() {
   const params = useParams<{ id: string }>()
   const [job, setJob] = useState<Job | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
-  const [generating, setGenerating] = useState(false)
+  const [activeAction, setActiveAction] = useState<JobAction>("idle")
+  const [lastAction, setLastAction] = useState<FeedbackAction>(null)
   const [message, setMessage] = useState("")
   const [error, setError] = useState("")
+  const [copiedLabel, setCopiedLabel] = useState("")
+
+  const generatingPackage = activeAction === "package"
+  const generatingCoverLetter = activeAction === "cover-letter"
+  const busy = activeAction !== "idle"
 
   useEffect(() => {
     fetch(`/api/jobs/${params.id}`)
@@ -40,6 +49,7 @@ export default function JobDetailPage() {
   const patch = async (payload: Partial<Job>) => {
     if (!job) return
     setSaving(true)
+    setActiveAction("saving")
     setError("")
     setMessage("")
     try {
@@ -56,14 +66,16 @@ export default function JobDetailPage() {
       setError(err instanceof Error ? err.message : "Could not update job.")
     } finally {
       setSaving(false)
+      setActiveAction("idle")
     }
   }
 
   const regenerate = async () => {
     if (!job) return
-    setGenerating(true)
+    setActiveAction("cover-letter")
+    setLastAction("cover-letter")
     setError("")
-    setMessage("")
+    setMessage("Writing a fresh cover letter from the saved strategy...")
     try {
       const response = await fetch(`/api/jobs/${job.id}/cover-letter`, { method: "POST" })
       const data = await response.json()
@@ -72,16 +84,18 @@ export default function JobDetailPage() {
       setMessage("Cover letter regenerated.")
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not regenerate cover letter.")
+      setMessage("")
     } finally {
-      setGenerating(false)
+      setActiveAction("idle")
     }
   }
 
   const generateApplicationPackage = async () => {
     if (!job) return
-    setGenerating(true)
+    setActiveAction("package")
+    setLastAction("package")
     setError("")
-    setMessage("")
+    setMessage("Generating resume suggestions, cover letter, salary guidance, and interview prep...")
     try {
       const response = await fetch(`/api/jobs/${job.id}/application-package`, { method: "POST" })
       const data = await response.json()
@@ -90,15 +104,18 @@ export default function JobDetailPage() {
       setMessage("Application package generated.")
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not generate application package.")
+      setMessage("")
     } finally {
-      setGenerating(false)
+      setActiveAction("idle")
     }
   }
 
   const copyText = async (value: string | null | undefined, label: string) => {
     if (!value) return
     await navigator.clipboard.writeText(value)
+    setCopiedLabel(label)
     setMessage(`${label} copied.`)
+    window.setTimeout(() => setCopiedLabel((current) => (current === label ? "" : current)), 1800)
   }
 
   const downloadText = (value: string | null | undefined, filename: string) => {
@@ -219,6 +236,14 @@ export default function JobDetailPage() {
               <CardTitle>Application package</CardTitle>
             </CardHeader>
             <CardContent className="space-y-5">
+              <ActionStatus
+                active={generatingPackage}
+                done={lastAction === "package" && message === "Application package generated."}
+                error={lastAction === "package" && activeAction === "idle" ? error : ""}
+                title="Generating application package"
+                activeMessage="This can take 30-90 seconds. The app is preparing resume suggestions, a cover letter, salary guidance, and interview prep."
+                doneMessage="Application package generated and saved to this job."
+              />
               {!applicationPackage ? (
                 <div className="space-y-3">
                   <p className="text-sm text-muted-foreground">
@@ -226,17 +251,17 @@ export default function JobDetailPage() {
                       ? "This is a strong match. Generate the full package when you are ready to apply."
                       : "Application packages are on demand, so generate one only when this job is worth the extra work."}
                   </p>
-                  <Button type="button" onClick={generateApplicationPackage} disabled={generating}>
-                    <RefreshCw className="h-4 w-4" />
-                    {generating ? "Generating" : "Generate package"}
+                  <Button type="button" onClick={generateApplicationPackage} disabled={busy}>
+                    {generatingPackage ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                    {generatingPackage ? "Generating package" : "Generate package"}
                   </Button>
                 </div>
               ) : (
                 <>
-                  <PackageText
-                    title="Resume tailoring suggestions"
-                    value={applicationPackage.resume_tailoring_suggestions.join("\n")}
+                  <ResumeTailoringPlan
+                    suggestions={applicationPackage.resume_tailoring_suggestions}
                     onCopy={() => copyText(applicationPackage.resume_tailoring_suggestions.join("\n"), "Resume tailoring suggestions")}
+                    copied={copiedLabel === "Resume tailoring suggestions"}
                     onDownload={() =>
                       downloadText(
                         applicationPackage.resume_tailoring_suggestions.join("\n"),
@@ -248,6 +273,7 @@ export default function JobDetailPage() {
                     title="Cover letter"
                     value={applicationPackage.cover_letter}
                     onCopy={() => copyText(applicationPackage.cover_letter, "Cover letter")}
+                    copied={copiedLabel === "Cover letter"}
                     onDownload={() =>
                       downloadText(
                         applicationPackage.cover_letter,
@@ -282,10 +308,18 @@ export default function JobDetailPage() {
               <CardTitle>Cover letter</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
+              <ActionStatus
+                active={generatingCoverLetter}
+                done={lastAction === "cover-letter" && message === "Cover letter regenerated."}
+                error={lastAction === "cover-letter" && activeAction === "idle" ? error : ""}
+                title="Writing cover letter"
+                activeMessage="Using the match analysis and application strategy to write a tailored letter."
+                doneMessage="Cover letter regenerated and saved."
+              />
               <div className="flex flex-wrap gap-2">
                 <Button type="button" variant="secondary" onClick={() => copyText(job.cover_letter, "Cover letter")} disabled={!job.cover_letter}>
                   <Copy className="h-4 w-4" />
-                  Copy
+                  {copiedLabel === "Cover letter" ? "Copied" : "Copy"}
                 </Button>
                 <Button
                   type="button"
@@ -296,9 +330,9 @@ export default function JobDetailPage() {
                   <Download className="h-4 w-4" />
                   Download
                 </Button>
-                <Button type="button" onClick={regenerate} disabled={generating}>
-                  <RefreshCw className="h-4 w-4" />
-                  {generating ? "Regenerating" : "Regenerate"}
+                <Button type="button" onClick={regenerate} disabled={busy}>
+                  {generatingCoverLetter ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                  {generatingCoverLetter ? "Regenerating" : "Regenerate"}
                 </Button>
               </div>
               <Textarea
@@ -348,7 +382,47 @@ export default function JobDetailPage() {
           </CardContent>
         </Card>
       </div>
+      <CopyToast label={copiedLabel} />
     </AppShell>
+  )
+}
+
+function ActionStatus({
+  active,
+  done,
+  error,
+  title,
+  activeMessage,
+  doneMessage,
+}: {
+  active: boolean
+  done: boolean
+  error: string
+  title: string
+  activeMessage: string
+  doneMessage: string
+}) {
+  if (!active && !done && !error) return null
+
+  if (error) {
+    return (
+      <div aria-live="polite" className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+        <p className="font-medium">Something stopped this action</p>
+        <p className="mt-1">{error}</p>
+      </div>
+    )
+  }
+
+  return (
+    <div aria-live="polite" className={`rounded-lg border px-4 py-3 text-sm ${active ? "border-blue-200 bg-blue-50 text-blue-800" : "border-emerald-200 bg-emerald-50 text-emerald-800"}`}>
+      <div className="flex items-start gap-3">
+        {active ? <Loader2 className="mt-0.5 h-4 w-4 animate-spin" /> : <CheckCircle2 className="mt-0.5 h-4 w-4" />}
+        <div>
+          <p className="font-medium">{active ? title : "Done"}</p>
+          <p className="mt-1">{active ? activeMessage : doneMessage}</p>
+        </div>
+      </div>
+    </div>
   )
 }
 
@@ -367,11 +441,13 @@ function PackageText({
   title,
   value,
   onCopy,
+  copied,
   onDownload,
 }: {
   title: string
   value: string
   onCopy: () => void
+  copied?: boolean
   onDownload: () => void
 }) {
   return (
@@ -380,8 +456,8 @@ function PackageText({
         <h2 className="font-medium">{title}</h2>
         <div className="flex gap-2">
           <Button type="button" variant="secondary" size="sm" onClick={onCopy}>
-            <Copy className="h-4 w-4" />
-            Copy
+            {copied ? <CheckCircle2 className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+            {copied ? "Copied" : "Copy"}
           </Button>
           <Button type="button" variant="secondary" size="sm" onClick={onDownload}>
             <Download className="h-4 w-4" />
@@ -393,6 +469,115 @@ function PackageText({
         {value}
       </p>
     </section>
+  )
+}
+
+function ResumeTailoringPlan({
+  suggestions,
+  onCopy,
+  copied,
+  onDownload,
+}: {
+  suggestions: string[]
+  onCopy: () => void
+  copied?: boolean
+  onDownload: () => void
+}) {
+  return (
+    <section className="space-y-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <h2 className="font-medium">Resume tailoring plan</h2>
+          <p className="text-sm text-muted-foreground">Concrete edits grouped by where to make them.</p>
+        </div>
+        <div className="flex gap-2">
+          <Button type="button" variant="secondary" size="sm" onClick={onCopy}>
+            {copied ? <CheckCircle2 className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+            {copied ? "Copied" : "Copy"}
+          </Button>
+          <Button type="button" variant="secondary" size="sm" onClick={onDownload}>
+            <Download className="h-4 w-4" />
+            Download
+          </Button>
+        </div>
+      </div>
+
+      {suggestions.length ? (
+        <div className="grid gap-3">
+          {suggestions.map((suggestion, index) => {
+            const action = getResumeAction(suggestion)
+            return (
+              <article key={`${index}-${suggestion.slice(0, 24)}`} className="rounded-lg border bg-white p-4 shadow-sm">
+                <div className="mb-3 flex items-center gap-2">
+                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-blue-50 text-sm font-semibold text-blue-700">
+                    {index + 1}
+                  </span>
+                  <h3 className="text-sm font-semibold text-slate-950">{action.where}</h3>
+                </div>
+                <div className="grid gap-3 md:grid-cols-[150px_minmax(0,1fr)]">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Do this</p>
+                  <p className="text-sm leading-6 text-slate-700">{action.change}</p>
+                </div>
+              </article>
+            )
+          })}
+        </div>
+      ) : (
+        <p className="text-sm text-muted-foreground">None listed</p>
+      )}
+    </section>
+  )
+}
+
+function getResumeAction(suggestion: string) {
+  const normalized = suggestion.trim()
+  const arrowParts = normalized.split(/\s+(?:→|->)\s+/)
+  if (arrowParts.length >= 2) {
+    return {
+      where: cleanResumeLocation(arrowParts[0]),
+      change: arrowParts.slice(1).join(" -> "),
+    }
+  }
+
+  const colonMatch = normalized.match(/^([^:]{3,80}):\s*(.+)$/)
+  if (colonMatch) {
+    return {
+      where: cleanResumeLocation(colonMatch[1]),
+      change: colonMatch[2],
+    }
+  }
+
+  const inferredLocation = inferResumeLocation(normalized)
+  return {
+    where: inferredLocation,
+    change: normalized,
+  }
+}
+
+function cleanResumeLocation(value: string) {
+  return value.replace(/^in\s+/i, "").replace(/^for\s+/i, "").trim()
+}
+
+function inferResumeLocation(value: string) {
+  const lower = value.toLowerCase()
+  if (lower.includes("skills")) return "Skills section"
+  if (lower.includes("headline") || lower.includes("profile")) return "Headline/Profile"
+  if (lower.includes("fellowork")) return "Fellowork experience"
+  if (lower.includes("kit")) return "KIT experience"
+  if (lower.includes("featured projects") || lower.includes("rag")) return "Featured Projects"
+  if (lower.includes("sales offer")) return "Sales Offer Engine"
+  if (lower.includes("cover letter")) return "Cover letter alignment"
+  return "Resume"
+}
+
+function CopyToast({ label }: { label: string }) {
+  if (!label) return null
+
+  return (
+    <div aria-live="polite" className="fixed bottom-5 left-1/2 z-50 flex -translate-x-1/2 items-center gap-2 rounded-full border border-emerald-200 bg-white px-4 py-2 text-sm font-medium text-emerald-700 shadow-lg">
+      <CheckCircle2 className="h-4 w-4" />
+      {label} copied
+    </div>
   )
 }
 
