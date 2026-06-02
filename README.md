@@ -20,6 +20,17 @@ AI job application assistant for analyzing jobs against a source resume, decidin
 3. Install dependencies with `npm install`.
 4. Start the app with `npm run dev`.
 
+## Admin Gate
+
+Set these before deploying:
+
+```txt
+ADMIN_PASSWORD=
+ADMIN_SESSION_SECRET=
+```
+
+`ADMIN_PASSWORD` is required for the `/login` gate. `ADMIN_SESSION_SECRET` is recommended for signing the admin session cookie; if omitted, the app falls back to `ADMIN_PASSWORD`.
+
 The main flow is:
 
 1. Upload resume PDF in `/settings`.
