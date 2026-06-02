@@ -17,6 +17,100 @@ function clean(value?: string | null) {
   return value?.replace(/\s+/g, " ").trim() || null
 }
 
+function stripHtml(value?: string | null) {
+  if (!value) return null
+  return clean(value.replace(/<[^>]*>/g, " "))
+}
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : null
+}
+
+function asString(value: unknown) {
+  return typeof value === "string" ? value : null
+}
+
+function firstString(...values: unknown[]): string | null {
+  for (const value of values) {
+    if (Array.isArray(value)) {
+      const nested = firstString(...value)
+      if (nested) return nested
+    }
+    const text = asString(value)
+    if (text) return text
+  }
+  return null
+}
+
+function findJobPosting(value: unknown): Record<string, unknown> | null {
+  const record = asRecord(value)
+  if (!record) return null
+
+  const type = record["@type"]
+  const types = Array.isArray(type) ? type : [type]
+  if (types.some((item) => typeof item === "string" && item.toLowerCase() === "jobposting")) {
+    return record
+  }
+
+  for (const item of Object.values(record)) {
+    if (Array.isArray(item)) {
+      for (const nested of item) {
+        const match = findJobPosting(nested)
+        if (match) return match
+      }
+    } else {
+      const match = findJobPosting(item)
+      if (match) return match
+    }
+  }
+
+  return null
+}
+
+function locationFromJobPosting(jobPosting: Record<string, unknown>) {
+  const jobLocation = jobPosting.jobLocation
+  const firstLocation = Array.isArray(jobLocation) ? jobLocation[0] : jobLocation
+  const locationRecord = asRecord(firstLocation)
+  const address = asRecord(locationRecord?.address)
+  return clean(
+    [
+      firstString(address?.addressLocality, address?.addressRegion),
+      firstString(address?.addressCountry),
+    ]
+      .filter(Boolean)
+      .join(", "),
+  )
+}
+
+function extractStructuredJob($: cheerio.CheerioAPI) {
+  for (const script of $("script[type='application/ld+json']").toArray()) {
+    const rawJson = $(script).contents().text()
+    if (!rawJson.trim()) continue
+
+    try {
+      const parsed = JSON.parse(rawJson)
+      const jobPosting = findJobPosting(parsed)
+      if (!jobPosting) continue
+
+      const organization = asRecord(jobPosting.hiringOrganization)
+      return {
+        title: clean(firstString(jobPosting.title)),
+        company: clean(firstString(organization?.name)),
+        location: locationFromJobPosting(jobPosting),
+        remote_type:
+          firstString(jobPosting.jobLocationType)?.toUpperCase() === "TELECOMMUTE"
+            ? "remote"
+            : null,
+        description: stripHtml(firstString(jobPosting.description)),
+      } satisfies Partial<ExtractedJob>
+    } catch {
+      continue
+    }
+  }
+
+  return null
+}
+
 function detectRemoteType(text: string): ExtractedJob["remote_type"] {
   const lower = text.toLowerCase()
   if (lower.includes("hybrid")) return "hybrid"
@@ -41,7 +135,8 @@ function getExtractionConfidence(input: {
 export async function runJobExtractionAgent(sourceUrl: string): Promise<ExtractedJob> {
   const response = await fetch(sourceUrl, {
     headers: {
-      "user-agent": "JobAssistant/1.0",
+      "user-agent":
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36",
       accept: "text/html,application/xhtml+xml",
     },
   })
@@ -52,23 +147,45 @@ export async function runJobExtractionAgent(sourceUrl: string): Promise<Extracte
 
   const html = await response.text()
   const $ = cheerio.load(html)
+  const structuredJob = extractStructuredJob($)
   $("script, style, noscript, svg").remove()
 
   const title =
+    structuredJob?.title ||
     clean($("meta[property='og:title']").attr("content")) ||
     clean($("h1").first().text()) ||
     clean($("title").text())
 
   const company =
+    structuredJob?.company ||
     clean($("meta[property='og:site_name']").attr("content")) ||
     clean($("[data-company], .company, .job-company").first().text())
 
-  const location = clean(
-    $("[data-location], .location, .job-location, [class*='location']").first().text(),
-  )
+  const location =
+    structuredJob?.location ||
+    clean($("[data-location], .location, .job-location, [class*='location']").first().text())
 
   let description =
-    clean($("[data-job-description], .job-description, #job-description, [class*='description']").first().text()) ||
+    structuredJob?.description ||
+    clean(
+      $(
+        [
+          "[data-job-description]",
+          "[data-automation-id='jobPostingDescription']",
+          "[data-testid='job-description']",
+          ".job-description",
+          ".posting-requirements",
+          ".posting-description",
+          ".description__text",
+          "#job-description",
+          "[class*='job-description']",
+          "[class*='description']",
+        ].join(", "),
+      )
+        .first()
+        .text(),
+    ) ||
+    clean($("meta[name='description']").attr("content")) ||
     null
 
   if (!description || description.length < 300) {
