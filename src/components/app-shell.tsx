@@ -24,7 +24,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <span className="flex size-8 items-center justify-center rounded-xl bg-indigo-50 text-indigo-700 ring-1 ring-indigo-100">
               <BriefcaseBusiness className="h-4 w-4" />
             </span>
-            Apply Pilot
+            Job Assistant
           </Link>
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
             <nav className="grid w-full grid-cols-3 gap-1 rounded-2xl bg-slate-100/70 p-1 ring-1 ring-slate-200 sm:flex sm:w-auto sm:items-center">

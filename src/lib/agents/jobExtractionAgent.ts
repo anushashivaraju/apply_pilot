@@ -41,7 +41,7 @@ function getExtractionConfidence(input: {
 export async function runJobExtractionAgent(sourceUrl: string): Promise<ExtractedJob> {
   const response = await fetch(sourceUrl, {
     headers: {
-      "user-agent": "JobMatchDashboard/1.0",
+      "user-agent": "JobAssistant/1.0",
       accept: "text/html,application/xhtml+xml",
     },
   })

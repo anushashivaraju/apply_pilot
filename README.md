@@ -1,4 +1,4 @@
-# Apply Pilot
+# Job Assistant
 
 AI job application assistant for analyzing jobs against a source resume, deciding whether each job is worth applying to, and turning strong opportunities into a practical application strategy.
 
@@ -38,4 +38,4 @@ The main flow is:
 3. Review the 0-100 fit analysis and application strategy in `/jobs/[id]`.
 4. Track jobs from `/dashboard`.
 
-Apply Pilot stores the original resume as the source profile and never overwrites it. Matching produces a 0-100 score, tier, priority, and application strategy. Full application packages are generated on demand and linked to the job. Packages include resume tailoring suggestions, a cover letter, salary expectation recommendation, interview preparation questions, suggested answers, skills to emphasize, and gaps to prepare for.
+Job Assistant stores the original resume as the source profile and never overwrites it. Matching produces a 0-100 score, tier, priority, and application strategy. Full application packages are generated on demand and linked to the job. Packages include resume tailoring suggestions, a cover letter, salary expectation recommendation, interview preparation questions, suggested answers, skills to emphasize, and gaps to prepare for.

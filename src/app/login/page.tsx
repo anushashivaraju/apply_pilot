@@ -81,7 +81,7 @@ function LoginShell({ children }: { children?: React.ReactNode }) {
           <span className="flex size-9 items-center justify-center rounded-2xl bg-indigo-50 text-indigo-700 ring-1 ring-indigo-100">
             <BriefcaseBusiness className="h-5 w-5" />
           </span>
-          Apply Pilot
+          Job Assistant
         </div>
 
         <Card className="border-slate-200/80 bg-white/95">
