@@ -122,6 +122,13 @@ export const profileUpdateSchema = z.object({
 })
 
 export const jobPatchSchema = z.object({
+  source_url: z.string().url().optional().nullable().or(z.literal("")),
+  title: z.string().nullable().optional(),
+  company: z.string().nullable().optional(),
+  location: z.string().nullable().optional(),
+  remote_type: z.enum(["remote", "hybrid", "on-site"]).optional().nullable().or(z.literal("")),
+  description: z.string().min(1).optional(),
+  interviewing: z.boolean().optional(),
   status: z.enum(["new", "saved", "applied", "dismissed"]).optional(),
   notes: z.string().nullable().optional(),
   application_date: z.string().nullable().optional(),

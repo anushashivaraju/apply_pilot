@@ -6,6 +6,7 @@ export function getDashboardStats(jobs: Job[]): DashboardStats {
     strong_matches: jobs.filter((job) => job.match_tier === "strong").length,
     cover_letters: jobs.filter((job) => Boolean(job.application_package || job.cover_letter)).length,
     applied: jobs.filter((job) => job.status === "applied").length,
+    interviews: jobs.filter((job) => job.interviewing).length,
   }
 }
 

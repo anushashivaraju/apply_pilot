@@ -12,7 +12,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const router = useRouter()
   const links = [
     { href: "/dashboard", label: "Dashboard" },
-    { href: "/jobs/new", label: "Add Job" },
     { href: "/settings", label: "Settings" },
   ]
 
@@ -27,7 +26,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             Job Assistant
           </Link>
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-            <nav className="grid w-full grid-cols-3 gap-1 rounded-2xl bg-slate-100/70 p-1 ring-1 ring-slate-200 sm:flex sm:w-auto sm:items-center">
+            <nav className="grid w-full grid-cols-2 gap-1 rounded-2xl bg-slate-100/70 p-1 ring-1 ring-slate-200 sm:flex sm:w-auto sm:items-center">
               {links.map((link) => {
                 const active = pathname === link.href || (link.href === "/dashboard" && pathname === "/")
                 return (

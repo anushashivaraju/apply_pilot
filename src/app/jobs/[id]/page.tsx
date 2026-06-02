@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { useParams } from "next/navigation"
-import { CheckCircle2, Copy, Download, ExternalLink, Loader2, RefreshCw } from "lucide-react"
+import { CalendarCheck, CheckCircle2, Copy, Download, ExternalLink, Loader2, RefreshCw } from "lucide-react"
 import { AppShell } from "@/components/app-shell"
 import { StatusMessage } from "@/components/status-message"
 import { Badge } from "@/components/ui/badge"
@@ -17,7 +17,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { tierTone } from "@/lib/jobs"
 import type { Job } from "@/types"
 
-type JobAction = "idle" | "package" | "cover-letter" | "saving"
+type JobAction = "idle" | "package" | "saving"
 type FeedbackAction = Exclude<JobAction, "idle" | "saving"> | null
 
 export default function JobDetailPage() {
@@ -32,7 +32,6 @@ export default function JobDetailPage() {
   const [copiedLabel, setCopiedLabel] = useState("")
 
   const generatingPackage = activeAction === "package"
-  const generatingCoverLetter = activeAction === "cover-letter"
   const busy = activeAction !== "idle"
 
   useEffect(() => {
@@ -60,32 +59,12 @@ export default function JobDetailPage() {
       })
       const data = await response.json()
       if (!response.ok) throw new Error(data.error)
-      setJob(data)
+      setJob((current) => ({ ...data, application_package: current?.application_package ?? null }))
       setMessage("Job updated.")
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not update job.")
     } finally {
       setSaving(false)
-      setActiveAction("idle")
-    }
-  }
-
-  const regenerate = async () => {
-    if (!job) return
-    setActiveAction("cover-letter")
-    setLastAction("cover-letter")
-    setError("")
-    setMessage("Writing a fresh cover letter from the saved strategy...")
-    try {
-      const response = await fetch(`/api/jobs/${job.id}/cover-letter`, { method: "POST" })
-      const data = await response.json()
-      if (!response.ok) throw new Error(data.error)
-      setJob((current) => current && { ...current, cover_letter: data.cover_letter })
-      setMessage("Cover letter regenerated.")
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not regenerate cover letter.")
-      setMessage("")
-    } finally {
       setActiveAction("idle")
     }
   }
@@ -156,6 +135,7 @@ export default function JobDetailPage() {
           <div className="mb-2 flex flex-wrap items-center gap-2">
             <Badge className={tierTone(job.match_tier)}>{job.match_tier || "unscored"}</Badge>
             <Badge variant="outline">{job.status}</Badge>
+            {job.interviewing ? <Badge className="bg-cyan-50 text-cyan-700 ring-1 ring-cyan-200">Interview</Badge> : null}
           </div>
           <h1 className="text-2xl font-semibold">{job.title || "Untitled role"}</h1>
           <p className="text-sm text-muted-foreground">
@@ -299,50 +279,45 @@ export default function JobDetailPage() {
               <CardTitle>Full job description</CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="whitespace-pre-wrap text-sm text-muted-foreground">{job.description}</p>
+              <Textarea
+                className="min-h-96"
+                value={job.description}
+                onChange={(event) => setJob((current) => current && { ...current, description: event.target.value })}
+                onBlur={() => patch({ description: job.description })}
+              />
             </CardContent>
           </Card>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Cover letter</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <ActionStatus
-                active={generatingCoverLetter}
-                done={lastAction === "cover-letter" && message === "Cover letter regenerated."}
-                error={lastAction === "cover-letter" && activeAction === "idle" ? error : ""}
-                title="Writing cover letter"
-                activeMessage="Using the match analysis and application strategy to write a tailored letter."
-                doneMessage="Cover letter regenerated and saved."
-              />
-              <div className="flex flex-wrap gap-2">
-                <Button type="button" variant="secondary" onClick={() => copyText(job.cover_letter, "Cover letter")} disabled={!job.cover_letter}>
-                  <Copy className="h-4 w-4" />
-                  {copiedLabel === "Cover letter" ? "Copied" : "Copy"}
-                </Button>
-                <Button
-                  type="button"
-                  variant="secondary"
-                  onClick={() => downloadText(job.cover_letter, `${job.company || "company"}-${job.title || "cover-letter"}.txt`)}
-                  disabled={!job.cover_letter}
-                >
-                  <Download className="h-4 w-4" />
-                  Download
-                </Button>
-                <Button type="button" onClick={regenerate} disabled={busy}>
-                  {generatingCoverLetter ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-                  {generatingCoverLetter ? "Regenerating" : "Regenerate"}
-                </Button>
-              </div>
-              <Textarea
-                className="min-h-72"
-                value={job.cover_letter ?? ""}
-                onChange={(event) => setJob((current) => current && { ...current, cover_letter: event.target.value })}
-                onBlur={() => patch({ cover_letter: job.cover_letter })}
-              />
-            </CardContent>
-          </Card>
+          {!applicationPackage && job.cover_letter ? (
+            <Card>
+              <CardHeader>
+                <CardTitle>Saved cover letter</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex flex-wrap gap-2">
+                  <Button type="button" variant="secondary" onClick={() => copyText(job.cover_letter, "Cover letter")} disabled={!job.cover_letter}>
+                    <Copy className="h-4 w-4" />
+                    {copiedLabel === "Cover letter" ? "Copied" : "Copy"}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    onClick={() => downloadText(job.cover_letter, `${job.company || "company"}-${job.title || "cover-letter"}.txt`)}
+                    disabled={!job.cover_letter}
+                  >
+                    <Download className="h-4 w-4" />
+                    Download
+                  </Button>
+                </div>
+                <Textarea
+                  className="min-h-72"
+                  value={job.cover_letter ?? ""}
+                  onChange={(event) => setJob((current) => current && { ...current, cover_letter: event.target.value })}
+                  onBlur={() => patch({ cover_letter: job.cover_letter })}
+                />
+              </CardContent>
+            </Card>
+          ) : null}
         </div>
 
         <Card className="h-fit">
@@ -350,6 +325,28 @@ export default function JobDetailPage() {
             <CardTitle>Tracking</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
+            <section className="space-y-4">
+              <h2 className="text-sm font-medium">Job details</h2>
+              <TextField label="Title" value={job.title} onChange={(value) => patch({ title: value || null })} />
+              <TextField label="Company" value={job.company} onChange={(value) => patch({ company: value || null })} />
+              <TextField label="Location" value={job.location} onChange={(value) => patch({ location: value || null })} />
+              <div className="space-y-2">
+                <Label>Remote type</Label>
+                <Select value={job.remote_type || "none"} onValueChange={(value) => value && patch({ remote_type: value === "none" ? null : (value as Job["remote_type"]) })}>
+                  <SelectTrigger>
+                    <SelectValue>{job.remote_type ? remoteTypeLabel(job.remote_type) : "Not set"}</SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Not set</SelectItem>
+                    <SelectItem value="remote">Remote</SelectItem>
+                    <SelectItem value="hybrid">Hybrid</SelectItem>
+                    <SelectItem value="on-site">On-site</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <TextField label="Source URL" value={job.source_url} onChange={(value) => patch({ source_url: value || null })} />
+            </section>
+            <Separator />
             <div className="space-y-2">
               <Label>Status</Label>
               <Select value={job.status} onValueChange={(status) => status && patch({ status: status as Job["status"] })}>
@@ -363,6 +360,19 @@ export default function JobDetailPage() {
                   <SelectItem value="dismissed">Dismissed</SelectItem>
                 </SelectContent>
               </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Interview</Label>
+              <Button
+                type="button"
+                variant={job.interviewing ? "default" : "secondary"}
+                className={job.interviewing ? "w-full bg-cyan-600 hover:bg-cyan-700" : "w-full"}
+                onClick={() => patch({ interviewing: !job.interviewing })}
+                disabled={busy}
+              >
+                <CalendarCheck className="h-4 w-4" />
+                {job.interviewing ? "Interview marked" : "Mark interview"}
+              </Button>
             </div>
             <DateField label="Application date" value={job.application_date} onChange={(value) => patch({ application_date: value })} />
             <DateField label="Deadline" value={job.deadline} onChange={(value) => patch({ deadline: value })} />
@@ -602,9 +612,17 @@ function TextField({ label, value, onChange }: { label: string; value: string | 
   return (
     <div className="space-y-2">
       <Label>{label}</Label>
-      <Input value={value ?? ""} onChange={(event) => onChange(event.target.value)} onBlur={(event) => onChange(event.target.value)} />
+      <Input key={value ?? ""} defaultValue={value ?? ""} onBlur={(event) => onChange(event.target.value)} />
     </div>
   )
+}
+
+function remoteTypeLabel(value: NonNullable<Job["remote_type"]>) {
+  return {
+    remote: "Remote",
+    hybrid: "Hybrid",
+    "on-site": "On-site",
+  }[value]
 }
 
 function DateField({ label, value, onChange }: { label: string; value: string | null; onChange: (value: string) => void }) {

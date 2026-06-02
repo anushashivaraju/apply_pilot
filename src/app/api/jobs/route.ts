@@ -107,6 +107,7 @@ export async function GET(request: Request) {
     const url = new URL(request.url)
     const tier = url.searchParams.get("tier")
     const status = url.searchParams.get("status")
+    const interview = url.searchParams.get("interview")
     const search = url.searchParams.get("search")
     const minScore = url.searchParams.get("min_score")
     const sort = url.searchParams.get("sort") || "created_at"
@@ -115,6 +116,8 @@ export async function GET(request: Request) {
 
     if (tier && tier !== "all") query = query.eq("match_tier", tier)
     if (status && status !== "all") query = query.eq("status", status)
+    if (interview === "yes") query = query.eq("interviewing", true)
+    if (interview === "no") query = query.eq("interviewing", false)
     if (minScore) query = query.gte("match_score", Number(minScore))
     if (search) {
       query = query.or(`title.ilike.%${search}%,company.ilike.%${search}%`)

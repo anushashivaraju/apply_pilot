@@ -29,6 +29,7 @@ export interface Job {
   application_package?: JobApplicationPackage | null
 
   status: "new" | "saved" | "applied" | "dismissed"
+  interviewing: boolean
 
   notes: string | null
   application_date: string | null
@@ -124,4 +125,5 @@ export interface DashboardStats {
   strong_matches: number
   cover_letters: number
   applied: number
+  interviews: number
 }

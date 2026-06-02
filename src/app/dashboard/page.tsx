@@ -2,11 +2,11 @@
 
 import Link from "next/link"
 import { useEffect, useMemo, useState } from "react"
-import { BadgeCheck, BriefcaseBusiness, FileText, Inbox, Plus, Search, Send } from "lucide-react"
+import { BadgeCheck, BriefcaseBusiness, CalendarCheck, FileText, Inbox, LayoutGrid, List, Plus, Search, Send } from "lucide-react"
 import { AppShell } from "@/components/app-shell"
 import { StatusMessage } from "@/components/status-message"
 import { Badge } from "@/components/ui/badge"
-import { buttonVariants } from "@/components/ui/button"
+import { Button, buttonVariants } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -22,9 +22,11 @@ export default function DashboardPage() {
   const [error, setError] = useState("")
   const [tier, setTier] = useState("all")
   const [status, setStatus] = useState("all")
+  const [interview, setInterview] = useState("all")
   const [sort, setSort] = useState("match_score")
   const [search, setSearch] = useState("")
   const [minScore, setMinScore] = useState(0)
+  const [view, setView] = useState<"cards" | "list">("cards")
 
   useEffect(() => {
     fetch("/api/profile")
@@ -37,7 +39,7 @@ export default function DashboardPage() {
 
   useEffect(() => {
     const controller = new AbortController()
-    const params = new URLSearchParams({ tier, status, sort })
+    const params = new URLSearchParams({ tier, status, interview, sort })
     if (search) params.set("search", search)
     if (minScore) params.set("min_score", String(minScore))
 
@@ -54,7 +56,7 @@ export default function DashboardPage() {
       .finally(() => setLoading(false))
 
     return () => controller.abort()
-  }, [tier, status, sort, search, minScore])
+  }, [tier, status, interview, sort, search, minScore])
 
   const stats = useMemo(() => getDashboardStats(jobs), [jobs])
 
@@ -71,15 +73,16 @@ export default function DashboardPage() {
         </Link>
       </div>
 
-      <div className="mb-6 grid gap-4 md:grid-cols-4">
+      <div className="mb-6 grid gap-4 md:grid-cols-5">
         <StatCard label="Total jobs" value={stats.total} icon={BriefcaseBusiness} tone="slate" />
         <StatCard label="Strong matches" value={stats.strong_matches} icon={BadgeCheck} tone="emerald" />
         <StatCard label="Packages" value={stats.cover_letters} icon={FileText} tone="violet" />
+        <StatCard label="Interviews" value={stats.interviews} icon={CalendarCheck} tone="cyan" />
         <StatCard label="Applied" value={stats.applied} icon={Send} tone="blue" />
       </div>
 
       <Card className="mb-6 border-slate-200/80 bg-white/95">
-        <CardContent className="grid gap-4 pt-6 md:grid-cols-[1fr_160px_160px_180px]">
+        <CardContent className="grid gap-4 pt-6 md:grid-cols-[1fr_150px_150px_150px_170px_auto]">
           <div className="space-y-2">
             <Label htmlFor="search" className="text-xs font-semibold uppercase tracking-wide text-slate-500">Search by title/company</Label>
             <div className="relative">
@@ -94,7 +97,9 @@ export default function DashboardPage() {
           </div>
           <Filter label="Fit" value={tier} onChange={setTier} values={["all", "strong", "moderate", "weak"]} />
           <Filter label="Status" value={status} onChange={setStatus} values={["all", "new", "saved", "applied", "dismissed"]} />
+          <Filter label="Interview" value={interview} onChange={setInterview} values={["all", "yes", "no"]} />
           <Filter label="Sort" value={sort} onChange={setSort} values={["match_score", "date", "company"]} />
+          <ViewToggle value={view} onChange={setView} />
         </CardContent>
       </Card>
 
@@ -107,37 +112,116 @@ export default function DashboardPage() {
         </div>
       ) : jobs.length === 0 ? (
         <EmptyState />
+      ) : view === "list" ? (
+        <JobList jobs={jobs} />
       ) : (
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {jobs.map((job) => (
-            <Link key={job.id} href={`/jobs/${job.id}`}>
-              <Card className="h-full border-slate-200/80 transition hover:-translate-y-0.5 hover:border-indigo-200 hover:shadow-md hover:shadow-indigo-100/60">
-                <CardHeader>
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <CardTitle className="line-clamp-2 text-base font-semibold text-slate-950">{job.title || "Untitled role"}</CardTitle>
-                      <p className="text-sm text-slate-500">{job.company || "Unknown company"}</p>
-                    </div>
-                    <Badge className={tierTone(job.match_tier)}>{job.match_tier || "unscored"}</Badge>
-                  </div>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="flex items-center justify-between gap-3">
-                    <ScoreBadge score={job.match_score} tier={job.match_tier} />
-                    <PackageBadge hasPackage={Boolean(job.application_package || job.cover_letter)} />
-                  </div>
-                  <p className="line-clamp-3 text-sm leading-6 text-slate-600">{job.match_summary || job.description}</p>
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-slate-500">{job.location || "Location not set"}</span>
-                    <StatusBadge status={job.status} />
-                  </div>
-                </CardContent>
-              </Card>
-            </Link>
-          ))}
-        </div>
+        <JobCards jobs={jobs} />
       )}
     </AppShell>
+  )
+}
+
+function ViewToggle({ value, onChange }: { value: "cards" | "list"; onChange: (value: "cards" | "list") => void }) {
+  return (
+    <div className="space-y-2">
+      <Label className="text-xs font-semibold uppercase tracking-wide text-slate-500">View</Label>
+      <div className="grid h-10 grid-cols-2 rounded-xl border border-slate-200 bg-slate-50/80 p-1 shadow-inner shadow-slate-100">
+        <Button
+          type="button"
+          size="sm"
+          variant={value === "cards" ? "default" : "ghost"}
+          className={cn("h-8 rounded-lg px-3", value === "cards" ? "bg-white text-slate-950 shadow-sm hover:bg-white" : "text-slate-500 hover:bg-white/70")}
+          onClick={() => onChange("cards")}
+          aria-pressed={value === "cards"}
+        >
+          <LayoutGrid className="h-4 w-4" />
+          Cards
+        </Button>
+        <Button
+          type="button"
+          size="sm"
+          variant={value === "list" ? "default" : "ghost"}
+          className={cn("h-8 rounded-lg px-3", value === "list" ? "bg-white text-slate-950 shadow-sm hover:bg-white" : "text-slate-500 hover:bg-white/70")}
+          onClick={() => onChange("list")}
+          aria-pressed={value === "list"}
+        >
+          <List className="h-4 w-4" />
+          List
+        </Button>
+      </div>
+    </div>
+  )
+}
+
+function JobCards({ jobs }: { jobs: Job[] }) {
+  return (
+    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+      {jobs.map((job) => (
+        <Link key={job.id} href={`/jobs/${job.id}`}>
+          <Card className="h-full border-slate-200/80 transition hover:-translate-y-0.5 hover:border-indigo-200 hover:shadow-md hover:shadow-indigo-100/60">
+            <CardHeader>
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <CardTitle className="line-clamp-2 text-base font-semibold text-slate-950">{job.title || "Untitled role"}</CardTitle>
+                  <p className="text-sm text-slate-500">{job.company || "Unknown company"}</p>
+                </div>
+                <Badge className={tierTone(job.match_tier)}>{job.match_tier || "unscored"}</Badge>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex items-center justify-between gap-3">
+                <ScoreBadge score={job.match_score} tier={job.match_tier} />
+                <PackageBadge hasPackage={Boolean(job.application_package || job.cover_letter)} />
+              </div>
+              <p className="line-clamp-3 text-sm leading-6 text-slate-600">{job.match_summary || job.description}</p>
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-slate-500">{job.location || "Location not set"}</span>
+                <div className="flex flex-wrap justify-end gap-2">
+                  {job.interviewing ? <InterviewBadge /> : null}
+                  <StatusBadge status={job.status} />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </Link>
+      ))}
+    </div>
+  )
+}
+
+function JobList({ jobs }: { jobs: Job[] }) {
+  return (
+    <div className="overflow-hidden rounded-xl border border-slate-200/80 bg-white/95 shadow-sm">
+      <div className="hidden grid-cols-[minmax(0,1.25fr)_120px_130px_120px_120px_110px] gap-4 border-b border-slate-200 bg-slate-50/80 px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500 lg:grid">
+        <span>Role</span>
+        <span>Fit</span>
+        <span>Location</span>
+        <span>Status</span>
+        <span>Interview</span>
+        <span>Package</span>
+      </div>
+      {jobs.map((job) => (
+        <Link
+          key={job.id}
+          href={`/jobs/${job.id}`}
+          className="grid gap-3 border-b border-slate-100 px-4 py-4 transition last:border-b-0 hover:bg-indigo-50/40 lg:grid-cols-[minmax(0,1.25fr)_120px_130px_120px_120px_110px] lg:items-center lg:gap-4"
+        >
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <h2 className="truncate text-sm font-semibold text-slate-950">{job.title || "Untitled role"}</h2>
+              <Badge className={tierTone(job.match_tier)}>{job.match_tier || "unscored"}</Badge>
+            </div>
+            <p className="mt-1 truncate text-sm text-slate-500">{job.company || "Unknown company"}</p>
+            <p className="mt-2 line-clamp-2 text-sm leading-6 text-slate-600 lg:hidden">{job.match_summary || job.description}</p>
+          </div>
+          <ScoreBadge score={job.match_score} tier={job.match_tier} />
+          <span className="truncate text-sm text-slate-500">{job.location || "Location not set"}</span>
+          <StatusBadge status={job.status} />
+          {job.interviewing ? <InterviewBadge /> : <span className="text-sm text-slate-400">No</span>}
+          <PackageBadge hasPackage={Boolean(job.application_package || job.cover_letter)} />
+        </Link>
+      ))}
+    </div>
   )
 }
 
@@ -150,12 +234,13 @@ function StatCard({
   label: string
   value: number
   icon: typeof BriefcaseBusiness
-  tone: "slate" | "emerald" | "violet" | "blue"
+  tone: "slate" | "emerald" | "violet" | "cyan" | "blue"
 }) {
   const tones = {
     slate: "bg-slate-50 text-slate-700 ring-slate-200",
     emerald: "bg-emerald-50 text-emerald-700 ring-emerald-100",
     violet: "bg-violet-50 text-violet-700 ring-violet-100",
+    cyan: "bg-cyan-50 text-cyan-700 ring-cyan-100",
     blue: "bg-blue-50 text-blue-700 ring-blue-100",
   }
 
@@ -211,6 +296,10 @@ function PackageBadge({ hasPackage }: { hasPackage: boolean }) {
   )
 }
 
+function InterviewBadge() {
+  return <Badge className="bg-cyan-50 text-cyan-700 ring-1 ring-cyan-200">Interview</Badge>
+}
+
 function EmptyState() {
   return (
     <Card className="border-dashed border-indigo-200 bg-white/90">
@@ -223,10 +312,6 @@ function EmptyState() {
           Add a company career page or paste a LinkedIn description to get a match score and application strategy.
         </p>
         <div className="mt-6 flex flex-wrap justify-center gap-2">
-          <Link className={buttonVariants({ className: "rounded-xl bg-indigo-600 hover:bg-indigo-700" })} href="/jobs/new">
-            <Plus className="h-4 w-4" />
-            Add Job
-          </Link>
           <Link className={buttonVariants({ variant: "secondary", className: "rounded-xl bg-indigo-50 text-indigo-700 hover:bg-indigo-100" })} href="/settings">
             Upload resume
           </Link>
@@ -257,6 +342,8 @@ function Filter({
       saved: "Saved",
       applied: "Applied",
       dismissed: "Dismissed",
+      yes: "Yes",
+      no: "No",
       match_score: "Match score",
       date: "Date",
       company: "Company",
