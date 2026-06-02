@@ -64,7 +64,7 @@ export default function DashboardPage() {
     <AppShell>
       <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-3xl font-semibold tracking-tight text-slate-950">Dashboard</h1>
+          <h1 className="text-3xl font-semibold tracking-tight text-slate-950">Anusha&apos;s dashboard</h1>
           <p className="mt-1 text-sm text-slate-600">Review AI job-fit analysis and application strategy.</p>
         </div>
         <Link className={buttonVariants({ className: "rounded-xl bg-indigo-600 shadow-sm shadow-indigo-200 hover:bg-indigo-700" })} href="/jobs/new">
