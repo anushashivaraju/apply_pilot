@@ -1,5 +1,5 @@
 import type { ApplicationStrategy, CandidateProfileSummary, Job, MatchResult, Profile } from "@/types"
-import { getOpenAI, getOpenAIModel } from "@/lib/openai"
+import { getOpenAI, getOpenAIGenerationModel } from "@/lib/openai"
 import { applicationPackageSchema } from "@/lib/validation"
 
 const systemPrompt = `You are an AI job application assistant.
@@ -55,7 +55,7 @@ export async function runApplicationPackageAgent(input: {
 
   const call = async () => {
     const completion = await getOpenAI().chat.completions.create({
-      model: getOpenAIModel(),
+      model: getOpenAIGenerationModel(),
       messages: [
         { role: "system", content: systemPrompt },
         { role: "user", content: userPrompt },

@@ -1,5 +1,5 @@
 import type { ApplicationStrategy, CandidateProfileSummary, Job, MatchResult, Profile } from "@/types"
-import { getOpenAI, getOpenAIModel } from "@/lib/openai"
+import { getOpenAI, getOpenAIGenerationModel } from "@/lib/openai"
 
 export async function runCoverLetterAgent(input: {
   candidateProfileSummary: CandidateProfileSummary
@@ -11,7 +11,7 @@ export async function runCoverLetterAgent(input: {
   companyResearchNotes?: string | null
 }) {
   const completion = await getOpenAI().chat.completions.create({
-    model: getOpenAIModel(),
+    model: getOpenAIGenerationModel(),
     messages: [
       {
         role: "system",

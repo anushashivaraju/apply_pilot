@@ -1,5 +1,5 @@
 import type { ApplicationStrategy, CandidateProfileSummary, Job, MatchResult, Profile } from "@/types"
-import { getOpenAI, getOpenAIModel } from "@/lib/openai"
+import { getOpenAI, getOpenAIAnalysisModel } from "@/lib/openai"
 import { applicationStrategySchema } from "@/lib/validation"
 
 const systemPrompt = `You are a practical career advisor helping the candidate decide how to approach a job application.
@@ -60,7 +60,7 @@ export async function runApplicationStrategyAgent(input: {
   })
 
   const completion = await getOpenAI().chat.completions.create({
-    model: getOpenAIModel(),
+    model: getOpenAIAnalysisModel(),
     messages: [
       { role: "system", content: systemPrompt },
       { role: "user", content: userPrompt },

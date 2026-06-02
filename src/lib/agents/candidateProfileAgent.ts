@@ -1,5 +1,5 @@
 import type { CandidateProfileSummary } from "@/types"
-import { getOpenAI, getOpenAIModel } from "@/lib/openai"
+import { getOpenAI, getOpenAIAnalysisModel } from "@/lib/openai"
 import { candidateProfileSummarySchema } from "@/lib/validation"
 
 const systemPrompt = `You convert a resume into a compact candidate profile JSON for job matching and cover letter generation.
@@ -20,7 +20,7 @@ No preamble.`
 
 export async function runCandidateProfileAgent(resumeText: string): Promise<CandidateProfileSummary> {
   const completion = await getOpenAI().chat.completions.create({
-    model: getOpenAIModel(),
+    model: getOpenAIAnalysisModel(),
     messages: [
       { role: "system", content: systemPrompt },
       {

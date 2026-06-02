@@ -39,3 +39,14 @@ The main flow is:
 4. Track jobs from `/dashboard`.
 
 Job Assistant stores the original resume as the source profile and never overwrites it. Matching produces a 0-100 score, tier, priority, and application strategy. Full application packages are generated on demand and linked to the job. Packages include resume tailoring suggestions, a cover letter, salary expectation recommendation, interview preparation questions, suggested answers, skills to emphasize, and gaps to prepare for.
+
+## OpenAI Cost Controls
+
+The app separates low-cost analysis from higher-quality final writing:
+
+```txt
+OPENAI_ANALYSIS_MODEL=gpt-5-mini
+OPENAI_GENERATION_MODEL=gpt-5
+```
+
+`OPENAI_ANALYSIS_MODEL` is used for resume profile extraction, job matching, and application strategy. `OPENAI_GENERATION_MODEL` is used for cover letters and full application packages. If either value is omitted, the app falls back to sensible defaults.

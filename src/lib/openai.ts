@@ -19,6 +19,13 @@ export function getOpenAI() {
 }
 
 export function getOpenAIModel() {
-  return process.env.OPENAI_MODEL || "gpt-5"
+  return process.env.OPENAI_MODEL || getOpenAIGenerationModel()
 }
 
+export function getOpenAIAnalysisModel() {
+  return process.env.OPENAI_ANALYSIS_MODEL || "gpt-5-mini"
+}
+
+export function getOpenAIGenerationModel() {
+  return process.env.OPENAI_GENERATION_MODEL || process.env.OPENAI_MODEL || "gpt-5"
+}

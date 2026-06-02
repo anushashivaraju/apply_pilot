@@ -1,5 +1,5 @@
 import type { CandidateProfileSummary, MatchResult, Profile } from "@/types"
-import { getOpenAI, getOpenAIModel } from "@/lib/openai"
+import { getOpenAI, getOpenAIAnalysisModel } from "@/lib/openai"
 import { matchResultSchema } from "@/lib/validation"
 
 const systemPrompt = `You are an expert technical recruiter and career coach.
@@ -65,7 +65,7 @@ export async function runMatchingAgent(input: {
 
   const call = async () => {
     const completion = await getOpenAI().chat.completions.create({
-      model: getOpenAIModel(),
+      model: getOpenAIAnalysisModel(),
       messages: [
         { role: "system", content: systemPrompt },
         { role: "user", content: userPrompt },
