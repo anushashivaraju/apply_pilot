@@ -33,12 +33,17 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   try {
     const { id } = await params
     const payload = jobPatchSchema.parse(await request.json())
+    const updates = {
+      ...payload,
+      rejection_date:
+        payload.status === "rejected" && payload.rejection_date === undefined
+          ? new Date().toISOString().slice(0, 10)
+          : payload.rejection_date,
+      updated_at: new Date().toISOString(),
+    }
     const { data, error } = await getSupabaseAdmin()
       .from("jobs")
-      .update({
-        ...payload,
-        updated_at: new Date().toISOString(),
-      })
+      .update(updates)
       .eq("id", id)
       .select("*")
       .single()

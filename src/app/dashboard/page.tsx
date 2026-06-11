@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { useEffect, useMemo, useState } from "react"
-import { BadgeCheck, BriefcaseBusiness, CalendarCheck, FileText, Inbox, LayoutGrid, List, Plus, Search, Send } from "lucide-react"
+import { BadgeCheck, BriefcaseBusiness, CalendarCheck, CircleX, FileText, Inbox, LayoutGrid, List, Plus, Search, Send } from "lucide-react"
 import { AppShell } from "@/components/app-shell"
 import { StatusMessage } from "@/components/status-message"
 import { Badge } from "@/components/ui/badge"
@@ -73,12 +73,13 @@ export default function DashboardPage() {
         </Link>
       </div>
 
-      <div className="mb-6 grid gap-4 md:grid-cols-5">
+      <div className="mb-6 grid gap-4 md:grid-cols-2 xl:grid-cols-6">
         <StatCard label="Total jobs" value={stats.total} icon={BriefcaseBusiness} tone="slate" />
         <StatCard label="Strong matches" value={stats.strong_matches} icon={BadgeCheck} tone="emerald" />
-        <StatCard label="Packages" value={stats.cover_letters} icon={FileText} tone="violet" />
+        <StatCard label="Materials" value={stats.cover_letters} icon={FileText} tone="violet" />
         <StatCard label="Interviews" value={stats.interviews} icon={CalendarCheck} tone="cyan" />
         <StatCard label="Applied" value={stats.applied} icon={Send} tone="blue" />
+        <StatCard label="Rejected" value={stats.rejected} icon={CircleX} tone="rose" />
       </div>
 
       <Card className="mb-6 border-slate-200/80 bg-white/95">
@@ -96,7 +97,7 @@ export default function DashboardPage() {
             </div>
           </div>
           <Filter label="Fit" value={tier} onChange={setTier} values={["all", "strong", "moderate", "weak"]} />
-          <Filter label="Status" value={status} onChange={setStatus} values={["all", "new", "saved", "applied", "dismissed"]} />
+          <Filter label="Status" value={status} onChange={setStatus} values={["all", "new", "saved", "applied", "rejected", "dismissed"]} />
           <Filter label="Interview" value={interview} onChange={setInterview} values={["all", "yes", "no"]} />
           <Filter label="Sort" value={sort} onChange={setSort} values={["match_score", "date", "company"]} />
           <ViewToggle value={view} onChange={setView} />
@@ -234,7 +235,7 @@ function StatCard({
   label: string
   value: number
   icon: typeof BriefcaseBusiness
-  tone: "slate" | "emerald" | "violet" | "cyan" | "blue"
+  tone: "slate" | "emerald" | "violet" | "cyan" | "blue" | "rose"
 }) {
   const tones = {
     slate: "bg-slate-50 text-slate-700 ring-slate-200",
@@ -242,6 +243,7 @@ function StatCard({
     violet: "bg-violet-50 text-violet-700 ring-violet-100",
     cyan: "bg-cyan-50 text-cyan-700 ring-cyan-100",
     blue: "bg-blue-50 text-blue-700 ring-blue-100",
+    rose: "bg-rose-50 text-rose-700 ring-rose-100",
   }
 
   return (
@@ -282,6 +284,7 @@ function StatusBadge({ status }: { status: Job["status"] }) {
     new: "bg-indigo-50 text-indigo-700 ring-indigo-200",
     saved: "bg-violet-50 text-violet-700 ring-violet-200",
     applied: "bg-blue-50 text-blue-700 ring-blue-200",
+    rejected: "bg-rose-50 text-rose-700 ring-rose-200",
     dismissed: "bg-slate-100 text-slate-600 ring-slate-200",
   }[status]
 
@@ -291,7 +294,7 @@ function StatusBadge({ status }: { status: Job["status"] }) {
 function PackageBadge({ hasPackage }: { hasPackage: boolean }) {
   return (
     <Badge className={cn("ring-1", hasPackage ? "bg-violet-50 text-violet-700 ring-violet-200" : "bg-slate-50 text-slate-500 ring-slate-200")}>
-      {hasPackage ? "Package" : "No package"}
+      {hasPackage ? "Materials" : "No materials"}
     </Badge>
   )
 }
@@ -341,6 +344,7 @@ function Filter({
       new: "New",
       saved: "Saved",
       applied: "Applied",
+      rejected: "Rejected",
       dismissed: "Dismissed",
       yes: "Yes",
       no: "No",

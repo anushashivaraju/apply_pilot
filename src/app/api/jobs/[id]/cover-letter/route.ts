@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { z } from "zod"
 import { runCoverLetterAgent } from "@/lib/agents/coverLetterAgent"
+import { updateApplicationArtifacts } from "@/lib/application-artifacts"
 import { jsonError } from "@/lib/api"
 import { ensureCandidateProfileSummary, normalizeProfile } from "@/lib/profile"
 import { getSupabaseAdmin } from "@/lib/supabase/server"
@@ -11,6 +12,10 @@ export const runtime = "nodejs"
 const generationSchema = z.object({
   language: z.enum(["english", "german"]).optional(),
   company_research_notes: z.string().optional().nullable(),
+})
+
+const updateSchema = z.object({
+  cover_letter: z.string(),
 })
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -30,6 +35,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     if (!profile.resume_text) {
       return jsonError("Upload a resume in Settings before generating a cover letter.")
     }
+    const originalResumeText = profile.resume_text
 
     profile = await ensureCandidateProfileSummary(supabase, profile)
     const candidateProfileSummary = profile.candidate_profile_summary
@@ -43,6 +49,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
     const coverLetter = await runCoverLetterAgent({
       candidateProfileSummary,
+      originalResumeText,
       profile,
       job: jobResult.data,
       matchResult: jobResult.data.match_data,
@@ -63,8 +70,35 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
     if (error) throw error
 
-    return NextResponse.json({ cover_letter: data.cover_letter })
+    const applicationPackage = await updateApplicationArtifacts(supabase, id, { cover_letter: coverLetter })
+
+    return NextResponse.json({
+      cover_letter: data.cover_letter,
+      application_package: applicationPackage,
+    })
   } catch (error) {
     return jsonError(error instanceof Error ? error.message : "Could not generate cover letter.", 400)
+  }
+}
+
+export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
+  try {
+    const { id } = await params
+    const { cover_letter } = updateSchema.parse(await request.json())
+    const supabase = getSupabaseAdmin()
+    const { error } = await supabase
+      .from("jobs")
+      .update({
+        cover_letter,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", id)
+
+    if (error) throw error
+
+    const applicationPackage = await updateApplicationArtifacts(supabase, id, { cover_letter })
+    return NextResponse.json({ cover_letter, application_package: applicationPackage })
+  } catch (error) {
+    return jsonError(error instanceof Error ? error.message : "Could not save cover letter.", 400)
   }
 }

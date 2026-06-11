@@ -13,6 +13,9 @@ export interface ExtractedJob {
   raw_text_excerpt: string
 }
 
+const FETCH_TIMEOUT_MS = 15_000
+const MAX_FETCH_ATTEMPTS = 2
+
 function clean(value?: string | null) {
   return value?.replace(/\s+/g, " ").trim() || null
 }
@@ -132,37 +135,75 @@ function getExtractionConfidence(input: {
   return "low"
 }
 
-export async function runJobExtractionAgent(sourceUrl: string): Promise<ExtractedJob> {
-  const response = await fetch(sourceUrl, {
-    headers: {
-      "user-agent":
-        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36",
-      accept: "text/html,application/xhtml+xml",
-    },
-  })
+function shouldRetry(status: number) {
+  return status === 408 || status === 429 || status >= 500
+}
 
-  if (!response.ok) {
-    throw new Error("Could not fetch the career page.")
+async function fetchJobPage(sourceUrl: string) {
+  let lastError: unknown
+
+  for (let attempt = 1; attempt <= MAX_FETCH_ATTEMPTS; attempt += 1) {
+    try {
+      const response = await fetch(sourceUrl, {
+        cache: "no-store",
+        redirect: "follow",
+        signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+        headers: {
+          "user-agent":
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36",
+          accept: "text/html,application/xhtml+xml",
+          "accept-language": "en-US,en;q=0.9",
+        },
+      })
+
+      if (response.ok) {
+        return {
+          html: await response.text(),
+          resolvedUrl: response.url || sourceUrl,
+        }
+      }
+
+      lastError = new Error(`Career page returned HTTP ${response.status}.`)
+      if (!shouldRetry(response.status)) break
+    } catch (error) {
+      lastError = error
+    }
+
+    if (attempt < MAX_FETCH_ATTEMPTS) {
+      await new Promise((resolve) => setTimeout(resolve, 250))
+    }
   }
 
-  const html = await response.text()
+  if (lastError instanceof Error && lastError.name === "TimeoutError") {
+    throw new Error("The career page took too long to respond.")
+  }
+
+  throw new Error(lastError instanceof Error ? lastError.message : "Could not fetch the career page.")
+}
+
+export async function runJobExtractionAgent(sourceUrl: string): Promise<ExtractedJob> {
+  const { html, resolvedUrl } = await fetchJobPage(sourceUrl)
   const $ = cheerio.load(html)
   const structuredJob = extractStructuredJob($)
   $("script, style, noscript, svg").remove()
 
   const title =
     structuredJob?.title ||
+    clean($("input[name='jobtitle']").attr("value")) ||
     clean($("meta[property='og:title']").attr("content")) ||
     clean($("h1").first().text()) ||
+    clean($("#aplitrak_job_content h2").first().clone().children().remove().end().text()) ||
     clean($("title").text())
 
   const company =
     structuredJob?.company ||
+    clean($("input[name='company_nice_name']").attr("value")) ||
     clean($("meta[property='og:site_name']").attr("content")) ||
     clean($("[data-company], .company, .job-company").first().text())
 
   const location =
     structuredJob?.location ||
+    clean($("input[name='display_location']").attr("value")) ||
     clean($("[data-location], .location, .job-location, [class*='location']").first().text())
 
   let description =
@@ -170,6 +211,7 @@ export async function runJobExtractionAgent(sourceUrl: string): Promise<Extracte
     clean(
       $(
         [
+          "#aplitrak_job_content .description",
           "[data-job-description]",
           "[data-automation-id='jobPostingDescription']",
           "[data-testid='job-description']",
@@ -189,7 +231,7 @@ export async function runJobExtractionAgent(sourceUrl: string): Promise<Extracte
     null
 
   if (!description || description.length < 300) {
-    const dom = new JSDOM(html, { url: sourceUrl })
+    const dom = new JSDOM(html, { url: resolvedUrl })
     const article = new Readability(dom.window.document).parse()
     description = clean(article?.textContent) || clean($("body").text())
   }

@@ -2,26 +2,20 @@ import type { ApplicationStrategy, CandidateProfileSummary, Job, MatchResult, Pr
 import { getOpenAI, getOpenAIAnalysisModel } from "@/lib/openai"
 import { applicationStrategySchema } from "@/lib/validation"
 
-const systemPrompt = `You are a practical career advisor helping the candidate decide how to approach a job application.
+const systemPrompt = `You are a practical career advisor helping the candidate decide whether a job is worth applying to.
 
-Do not only summarize the match.
-Give application strategy.
-
-Return:
+Return only:
 - whether the candidate should apply now, maybe apply, or skip
-- why
-- what to emphasize
-- what to downplay
-- what gaps to prepare for
-- best cover letter angle
-- resume tailoring suggestions
-- interview preparation points
-- salary positioning when there is enough context
+- a concise decision summary
+- the strongest reasons the role fits
+- the material concerns or risks
 
 Be honest but supportive.
 Do not invent experience.
 Do not flatter.
 Prioritize realistic application decisions.
+Do not generate resume modifications, cover-letter guidance, interview preparation, or salary advice.
+Those belong to separate on-demand application materials.
 Return only valid JSON.
 No markdown.
 No preamble.`
@@ -50,12 +44,6 @@ export async function runApplicationStrategyAgent(input: {
       decision_summary: "",
       why_this_role_fits: [],
       concerns: [],
-      what_to_emphasize: [],
-      what_to_downplay: [],
-      cover_letter_angle: "",
-      resume_tailoring_suggestions: [],
-      interview_preparation_points: [],
-      salary_positioning: null,
     },
   })
 

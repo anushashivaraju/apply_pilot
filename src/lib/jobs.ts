@@ -7,6 +7,7 @@ export function getDashboardStats(jobs: Job[]): DashboardStats {
     cover_letters: jobs.filter((job) => Boolean(job.application_package || job.cover_letter)).length,
     applied: jobs.filter((job) => job.status === "applied").length,
     interviews: jobs.filter((job) => job.interviewing).length,
+    rejected: jobs.filter((job) => job.status === "rejected").length,
   }
 }
 

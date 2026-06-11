@@ -38,7 +38,7 @@ The main flow is:
 3. Review the 0-100 fit analysis and application strategy in `/jobs/[id]`.
 4. Track jobs from `/dashboard`.
 
-Job Assistant stores the original resume as the source profile and never overwrites it. Matching produces a 0-100 score, tier, priority, and application strategy. Full application packages are generated on demand and linked to the job. Packages include resume tailoring suggestions, a cover letter, salary expectation recommendation, interview preparation questions, suggested answers, skills to emphasize, and gaps to prepare for.
+Job Assistant stores the original resume as the source profile and never overwrites it. Matching produces a 0-100 score, tier, priority, and application strategy. Application materials are generated independently, so resume modifications, a personalized cover letter, and interview preparation can be requested only when needed. Cover letters are editable with autosave and downloadable as formatted A4 PDFs.
 
 ## OpenAI Cost Controls
 

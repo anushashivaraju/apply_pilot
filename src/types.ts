@@ -28,8 +28,20 @@ export interface Job {
   cover_letter: string | null
   application_package?: JobApplicationPackage | null
 
-  status: "new" | "saved" | "applied" | "dismissed"
+  status: "new" | "saved" | "applied" | "rejected" | "dismissed"
   interviewing: boolean
+  rejection_date: string | null
+  rejection_stage:
+    | "application"
+    | "recruiter_screen"
+    | "hiring_manager"
+    | "technical"
+    | "take_home"
+    | "onsite"
+    | "final"
+    | "unknown"
+    | null
+  rejection_reason: string | null
 
   notes: string | null
   application_date: string | null
@@ -50,10 +62,6 @@ export interface MatchResult {
   nice_to_have_skills: string[]
   recommended: boolean
   reasoning: string
-  application_strategy: string
-  cover_letter_angle: string
-  resume_angle: string
-  interview_risks: string[]
 }
 
 export interface ApplicationStrategy {
@@ -61,12 +69,6 @@ export interface ApplicationStrategy {
   decision_summary: string
   why_this_role_fits: string[]
   concerns: string[]
-  what_to_emphasize: string[]
-  what_to_downplay: string[]
-  cover_letter_angle: string
-  resume_tailoring_suggestions: string[]
-  interview_preparation_points: string[]
-  salary_positioning: string | null
 }
 
 export interface JobApplicationPackage {
@@ -126,4 +128,5 @@ export interface DashboardStats {
   cover_letters: number
   applied: number
   interviews: number
+  rejected: number
 }

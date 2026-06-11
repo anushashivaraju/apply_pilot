@@ -50,10 +50,6 @@ export const matchResultSchema = z.object({
   nice_to_have_skills: aiStringArraySchema,
   recommended: z.coerce.boolean(),
   reasoning: aiStringSchema,
-  application_strategy: aiStringSchema,
-  cover_letter_angle: aiStringSchema,
-  resume_angle: aiStringSchema,
-  interview_risks: aiStringArraySchema,
 })
 
 export const applicationStrategySchema = z.object({
@@ -61,12 +57,6 @@ export const applicationStrategySchema = z.object({
   decision_summary: aiStringSchema,
   why_this_role_fits: aiStringArraySchema,
   concerns: aiStringArraySchema,
-  what_to_emphasize: aiStringArraySchema,
-  what_to_downplay: aiStringArraySchema,
-  cover_letter_angle: aiStringSchema,
-  resume_tailoring_suggestions: aiStringArraySchema,
-  interview_preparation_points: aiStringArraySchema,
-  salary_positioning: aiStringSchema.nullable(),
 })
 
 export const applicationPackageSchema = z.object({
@@ -77,6 +67,18 @@ export const applicationPackageSchema = z.object({
   interview_answers: z.array(z.string()),
   skills_to_emphasize: z.array(z.string()),
   gaps_to_prepare: z.array(z.string()),
+})
+
+export const resumeTailoringSchema = z.object({
+  resume_tailoring_suggestions: aiStringArraySchema,
+  skills_to_emphasize: aiStringArraySchema,
+  gaps_to_prepare: aiStringArraySchema,
+})
+
+export const interviewPrepSchema = z.object({
+  interview_questions: aiStringArraySchema,
+  interview_answers: aiStringArraySchema,
+  gaps_to_prepare: aiStringArraySchema,
 })
 
 export const candidateProfileSummarySchema = z.object({
@@ -129,7 +131,22 @@ export const jobPatchSchema = z.object({
   remote_type: z.enum(["remote", "hybrid", "on-site"]).optional().nullable().or(z.literal("")),
   description: z.string().min(1).optional(),
   interviewing: z.boolean().optional(),
-  status: z.enum(["new", "saved", "applied", "dismissed"]).optional(),
+  status: z.enum(["new", "saved", "applied", "rejected", "dismissed"]).optional(),
+  rejection_date: z.string().nullable().optional(),
+  rejection_stage: z
+    .enum([
+      "application",
+      "recruiter_screen",
+      "hiring_manager",
+      "technical",
+      "take_home",
+      "onsite",
+      "final",
+      "unknown",
+    ])
+    .nullable()
+    .optional(),
+  rejection_reason: z.string().nullable().optional(),
   notes: z.string().nullable().optional(),
   application_date: z.string().nullable().optional(),
   deadline: z.string().nullable().optional(),

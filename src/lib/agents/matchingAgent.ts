@@ -24,10 +24,9 @@ Weight heavily:
 - candidate preferences
 - excluded companies and excluded keywords
 
-Do not only summarize the match. Include practical application strategy:
-- what angle to use in the cover letter
-- what angle to use in resume tailoring
-- interview risks or gaps to prepare for
+Keep this analysis focused on fit and evidence.
+Do not generate resume edits, cover-letter guidance, interview preparation, or salary advice.
+Those are generated separately only when the user requests application materials.
 
 Return only valid JSON.
 No markdown.
@@ -56,10 +55,6 @@ export async function runMatchingAgent(input: {
       nice_to_have_skills: [],
       recommended: true,
       reasoning: "",
-      application_strategy: "",
-      cover_letter_angle: "",
-      resume_angle: "",
-      interview_risks: [],
     },
   })
 
